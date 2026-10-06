@@ -35,4 +35,17 @@ export type ActionResult = {
 export type OverviewResult = {
   cards: { label: string; value: number }[]
   modules: { name: string; created: number; pending: number; abnormal: number }[]
+  overdueHazards: number
+}
+
+/** 追加式留痕：验收、顺延、补录、历史回填等凡是改口径的动作都进这一份，只增不改。 */
+export type AuditEntry = {
+  id: number
+  time: string
+  module: string
+  refCode: string
+  action: string
+  operator: string
+  detail: string
+  batch?: string
 }

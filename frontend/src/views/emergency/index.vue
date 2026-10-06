@@ -2,20 +2,19 @@
   <section class="page" data-module="emergency">
     <header class="page-head">
       <div>
-        <h2>应急演练管理管理</h2>
-        <p class="page-desc">维护应急演练，围绕演练编号、演练场景、参与班组、计划日期做登记、筛选与状态流转。</p>
+        <h2>应急演练管理</h2>
+        <p class="page-desc">隐患验收结论同步到本页评估清单；同一隐患只维护一条，重验更新、已评估的按最新隐患情况再排一次演练。</p>
       </div>
       <div class="page-actions">
-        <button class="btn primary" type="button" @click="openCreate">登记应急演练</button>
-        <button class="btn" type="button" @click="exportRows">导出应急演练管理清单</button>
+        <button class="btn" type="button" @click="exportRows">导出应急演练清单</button>
       </div>
     </header>
 
     <div class="stat-row">
-      <article v-for="item in stats" :key="item.label" class="stat-card">
-        <span class="stat-label">{{ item.label }}</span>
-        <strong class="stat-value">{{ item.value }}</strong>
-      </article>
+      <article class="stat-card"><span class="stat-label">待组织演练</span><strong>{{ c.waiting }}</strong></article>
+      <article class="stat-card"><span class="stat-label">演练中</span><strong>{{ c.doing }}</strong></article>
+      <article class="stat-card"><span class="stat-label">已评估</span><strong>{{ c.done }}</strong></article>
+      <article class="stat-card"><span class="stat-label">关联隐患条目</span><strong>{{ c.linked }}</strong></article>
     </div>
 
     <p class="status-legend">
@@ -33,6 +32,7 @@
       <button class="btn ghost" type="button" @click="resetFilters">重置条件</button>
     </form>
 
+    <h3 class="sub-title">演练评估清单（含隐患验收同步）</h3>
     <table class="data-table">
       <thead>
         <tr>
@@ -46,26 +46,48 @@
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
+            <button class="link" type="button" @click="runAction('组织演练', row)">组织演练</button>
+            <button class="link" type="button" @click="runAction('提交评估', row)">提交评估</button>
+            <button class="link" type="button" @click="runAction('取消演练', row)">取消演练</button>
             <button
-              v-for="action in actions"
-              :key="action"
-              class="link"
-              type="button"
-              @click="runAction(action, row)"
-            >
-              {{ action }}
-            </button>
+              v-if="row['关联隐患编号']"
+              class="link" type="button"
+              @click="runAction('按隐患重排', row)"
+            >按最新隐患重排</button>
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 2" class="empty-state">暂无应急演练管理数据，可先登记应急演练</td>
+          <td :colspan="columns.length + 2" class="empty-state">暂无应急演练数据</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 class="sub-title">最新隐患情况（验收/退回口径，演练排期依据）</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>隐患编号</th><th>部位</th><th>等级</th><th>状态</th><th>验收日期</th><th>验收结论/退回意见</th></tr>
+      </thead>
+      <tbody>
+        <tr v-for="h in hazards" :key="String(h.id)">
+          <td>{{ h['隐患编号'] }}</td>
+          <td>{{ h['隐患部位'] }}</td>
+          <td>{{ h['隐患等级'] }}</td>
+          <td>
+            <span :class="h.status === '退回重改' ? 'tag-return' : 'tag-ok'">{{ h.status }}</span>
+          </td>
+          <td>{{ h['验收日期'] ?? '—' }}</td>
+          <td>{{ h.status === '已验收' ? h['验收结论'] : `退回重改：${h['最近退回结论'] ?? ''}（期限顺延至${h['整改期限']}）` }}</td>
+        </tr>
+        <tr v-if="!hazards.length">
+          <td colspan="6" class="empty-state">暂无可供排期的验收/退回隐患</td>
         </tr>
       </tbody>
     </table>
 
     <footer class="page-foot">
-      <span>共 {{ total }} 条应急演练管理记录</span>
+      <span>共 {{ total }} 条演练记录；评估清单与隐患验收结论为同一同步链路</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
+      <span v-else-if="okMessage" class="reconcile-ok">{{ okMessage }}</span>
     </footer>
   </section>
 </template>
@@ -79,25 +101,32 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { latestHazardsForEmergency } from '@/api/hazard-service'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('emergency')
-const columns = ["演练编号", "演练场景", "参与班组", "计划日期", "演练时长", "评估结论", "组织人员", "演练状态"]
-const actions = ["组织演练", "提交评估", "取消演练"]
-const statuses = ["待组织", "演练中", "已评估", "已取消"]
-const stats = [{"label": "待组织演练", "value": 0}, {"label": "已评估演练", "value": 0}, {"label": "本月演练次数", "value": 0}]
+const columns = ['演练编号', '演练场景', '参与班组', '计划日期', '演练时长', '评估结论', '关联隐患编号', '隐患快照', '同步时间']
+const filterFields = ['演练编号', '演练场景', '参与班组', '关联隐患编号']
 
 const rows = ref<EntryRow[]>([])
+const hazards = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
+const okMessage = ref('')
 const filters = ref<Record<string, string>>({})
-const filterFields = columns.slice(0, 3)
+
 const statusSummary = computed(() =>
-  statuses.map((status: string) => ({
+  ['待组织', '演练中', '已评估', '已取消'].map((status) => ({
     status,
     count: rows.value.filter((row) => String(row.status) === status).length,
   })),
 )
+const c = computed(() => ({
+  waiting: rows.value.filter((r) => r.status === '待组织').length,
+  doing: rows.value.filter((r) => r.status === '演练中').length,
+  done: rows.value.filter((r) => r.status === '已评估').length,
+  linked: rows.value.filter((r) => r['关联隐患编号']).length,
+}))
 
 function resetFilters() {
   filters.value = {}
@@ -108,10 +137,6 @@ function exportRows() {
   downloadEntries(meta.key)
 }
 
-function openCreate() {
-  errorMessage.value = '应急演练登记入口尚未接入审批流'
-}
-
 function runAction(action: string, row: EntryRow) {
   errorMessage.value = ''
   const result = applyAction(meta.key, Number(row.id), action)
@@ -119,19 +144,21 @@ function runAction(action: string, row: EntryRow) {
     errorMessage.value = result.message
     return
   }
+  okMessage.value = result.message
   reload()
 }
 
 function reload() {
   errorMessage.value = ''
-  try {
-    const payload = listEntries(meta.key, filters.value)
-    rows.value = payload.items
-    total.value = payload.total
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '应急演练管理列表读取失败'
-  }
+  const payload = listEntries(meta.key, filters.value)
+  rows.value = payload.items
+  total.value = payload.total
+  hazards.value = latestHazardsForEmergency()
 }
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.sub-title { font-size: 14px; margin: 18px 0 8px; }
+</style>

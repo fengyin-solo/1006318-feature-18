@@ -14,7 +14,14 @@
         <span class="stat-label">{{ card.label }}</span>
         <strong class="stat-value">{{ card.value }}</strong>
       </article>
+      <article class="stat-card">
+        <span class="stat-label">逾期隐患（与隐患页同口径）</span>
+        <strong class="stat-value" :class="{ 'tag-overdue': overdueHazards > 0 }">{{ overdueHazards }}</strong>
+      </article>
     </div>
+    <p class="page-desc" style="margin-bottom:10px">
+      逾期隐患数由整改期限统一派生（未验收且期限早于今天），验收通过即清零；与隐患列表、导出、整改待办读同一份数据。
+    </p>
     <table class="data-table">
       <thead>
         <tr><th>业务模块</th><th>今日新增</th><th>待处理</th><th>异常量</th></tr>
@@ -42,11 +49,13 @@ import type { OverviewResult } from '@/data/types'
 
 const cards = ref<OverviewResult['cards']>([])
 const moduleRows = ref<OverviewResult['modules']>([])
+const overdueHazards = ref(0)
 
 function refresh() {
   const payload = loadOverview()
   cards.value = payload.cards
   moduleRows.value = payload.modules
+  overdueHazards.value = payload.overdueHazards
 }
 
 onMounted(refresh)

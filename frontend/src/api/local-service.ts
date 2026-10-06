@@ -1,5 +1,6 @@
 import { MODULE_BY_KEY } from '@/data/modules'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
+import { hazardReconciliation, hazardSummary, reconcileOnBoot } from '@/api/hazard-service'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
@@ -58,6 +59,10 @@ export function runAction(key: string, id: number, action: string): ActionResult
 
 export function resetModule(key: string): PageResult {
   resetRows(key)
+  // 重置隐患主表后，待办/评估清单也要跟着重建，口径才不会劈叉。
+  if (key === 'hazard') {
+    reconcileOnBoot()
+  }
   return listEntries(key)
 }
 
@@ -88,6 +93,16 @@ export function loadOverview(): OverviewResult {
   const rows = allRows()
   const modules = [...MODULE_BY_KEY.values()].map((meta) => {
     const entries = rows[meta.key] ?? []
+    if (meta.key === 'hazard') {
+      // 隐患口径以隐患域的统一推导为准，概览不再自己数 pending/abnormal。
+      const summary = hazardSummary()
+      return {
+        name: meta.name,
+        created: summary.total,
+        pending: summary.open,
+        abnormal: summary.overdue,
+      }
+    }
     return {
       name: meta.name,
       created: entries.length,
@@ -102,4 +117,9 @@ export function loadOverview(): OverviewResult {
     { label: '异常量', value: modules.reduce((sum, item) => sum + item.abnormal, 0) },
   ]
   return { cards, modules }
+}
+
+/** 隐患口径对账数：概览页用它展示三处数字是否对齐。 */
+export function overviewHazardReconciliation() {
+  return hazardReconciliation()
 }

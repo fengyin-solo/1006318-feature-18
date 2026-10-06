@@ -82,7 +82,7 @@ import {
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('leak')
-const columns = ["处置编号", "渗漏点位", "渗漏程度", "处置方式", "处置班组", "发现日期", "完工日期", "处置状态"]
+const columns = ["处置编号", "渗漏点位", "渗漏程度", "处置方式", "处置班组", "发现日期", "完工日期", "回填备注", "处置状态"]
 const actions = ["派出处置", "确认完工", "要求返工"]
 const statuses = ["待处置", "处置中", "已完工", "需返工"]
 const stats = [{"label": "待处置渗漏点", "value": 0}, {"label": "处置中渗漏点", "value": 0}, {"label": "本月完工数", "value": 0}]

@@ -68,4 +68,8 @@ npm run build
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
   `frontend/src/data/seed.ts`。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
+- 隐患整改管理走专门的一致口径层：`src/api/hazard-service.ts`（单一事实源、验收原子落库、
+  班组归属、待办与应急评估清单联动），存量回填规则见
+  [`frontend/docs/hazard-consistency.md`](frontend/docs/hazard-consistency.md)。
+  顶栏可切换责任班组，「观摩账号」为只读入口；「整改待办」是处置结论回写的另一个入口。
 - 想回到初始数据：清掉浏览器里 `urban-utility-tunnel:entries` 这一项，或调用 `resetModule(模块)`。
